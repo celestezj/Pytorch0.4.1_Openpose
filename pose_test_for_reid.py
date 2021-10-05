@@ -1,5 +1,4 @@
 import cv2
-import argparse
 from openpose import Openpose, draw_person_pose
 import matplotlib.pyplot as plt
 import os.path
@@ -8,6 +7,8 @@ import pickle
 from entity import JointType
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
+from tqdm import tqdm
+from reid_datasets import create
 
 def contrast_plot(imgs,labels=None,process=None, \
                   save_path=None,dpi=None):
@@ -104,21 +105,43 @@ if __name__ == '__main__':
     openpose = Openpose(weights_file = os.path.join(os.path.dirname( \
         __file__),'./models/posenet.pth'), training = False)
 
-    imgs_dir = os.path.join(os.path.dirname(__file__),'./data/reid')
-    imgs_list = [i for i in sorted(os.listdir(imgs_dir)) if i.endswith(('.jpg','.png','.bmp'))]
+    # imgs_dir = os.path.join(os.path.dirname(__file__),'./data/reid')
+    # imgs_list = [os.path.normpath(os.path.join(imgs_dir, i)) \
+    #     for i in sorted(os.listdir(imgs_dir)) if i.endswith(('.jpg','.png','.bmp'))] #test dmeo
+    dataset = create('market1501', os.path.join(os.path.dirname(__file__),'./data'))
+    imgs_list = list(zip(*dataset.train))[0] #comment when test demo
 
-    pose_imgs = []
-    parts_pos_data = {}
-    for img_name in imgs_list:
-        img_path = os.path.normpath(os.path.join(imgs_dir, img_name))
-        img = cv2.imread(img_path)
-        poses, _ = openpose.detect(img, precise=True)
-        img = draw_person_pose(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), poses)
-        img, parts_pos = draw_person_parts(img, poses, roi, \
-            colors=[(0,0,255),(255,0,0),(0,255,0)], text=True)
-        pose_imgs.append(img)
-        parts_pos_data[img_path] = parts_pos
+    pose_imgs, parts_pos_data = [], {}
+    with tqdm(total=len(imgs_list), ncols=80) as pbar:
+        for img_path in imgs_list:
+            img = cv2.imread(img_path)
+            poses, _ = openpose.detect(img, precise=True)
+            # img = draw_person_pose(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), poses)
+            # img, parts_pos = draw_person_parts(img, poses, roi, padding=6, \
+            #     only=True, colors=[(0,0,255),(255,0,0),(0,255,0)], text=True)
+            # pose_imgs.append(img) #uncomment for test demo
+            parts_pos = calc_roi_pos(poses,roi,img.shape[:2],padding=6,only=True) #comment when test demo
+            parts_pos_data[img_path] = parts_pos
+            pbar.update(1)
 
     with open(os.path.join(os.path.dirname(__file__),'./data/reid_poses.pickle'), 'wb') as f:
         pickle.dump(parts_pos_data, f, pickle.HIGHEST_PROTOCOL)
-    contrast_plot(pose_imgs, save_path='reid_pose_imgs.png',dpi=1600)
+    # contrast_plot(pose_imgs, save_path='reid_pose_imgs.png',dpi=1600) #uncomment for test demo
+    '''
+    imgs_dir = os.path.join(os.path.dirname(__file__),'./data/reid')
+    imgs_list = [i for i in sorted(os.listdir(imgs_dir)) if i.endswith(('.jpg','.png','.bmp'))] #test dmeo
+    with open(os.path.join(os.path.dirname(__file__),'./data/reid_featuremap.pickle'), 'rb') as f:
+        fm_data = pickle.load(f)
+    i = 1
+    for img_name in imgs_list:
+        img_path = os.path.normpath(os.path.join(imgs_dir, img_name))
+        img = cv2.imread(img_path)
+        plt.subplot(4,6,i)
+        plt.imshow(img[:,:,::-1])
+        if img_name in fm_data:
+            fm = np.max(fm_data[img_name],axis=0)
+            plt.imshow(cv2.resize(fm, img.shape[:2][::-1]), cmap='coolwarm', alpha=0.6)
+        i += 1
+    plt.savefig(os.path.join(os.path.dirname(__file__),'./data/reid_heatmap.png'),dpi=1600)
+    plt.show()
+    '''
