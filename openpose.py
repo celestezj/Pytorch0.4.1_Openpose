@@ -932,7 +932,7 @@ class Openpose(object):
         return poses, scores
 
 
-def draw_person_pose(orig_img, poses):
+def draw_person_pose(orig_img, poses, mode='limbs_joints'):
     orig_img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB)
     if len(poses) == 0:
         return orig_img
@@ -953,17 +953,19 @@ def draw_person_pose(orig_img, poses):
     canvas = orig_img.copy()
 
     # limbs
-    for pose in poses.round().astype('i'):
-        for i, (limb, color) in enumerate(zip(params['limbs_point'], limb_colors)):
-            if i != 9 and i != 13:  # don't show ear-shoulder connection
-                limb_ind = np.array(limb)
-                if np.all(pose[limb_ind][:, 2] != 0):
-                    joint1, joint2 = pose[limb_ind][:, :2]
-                    cv2.line(canvas, tuple(joint1), tuple(joint2), color, 2)
+    if 'limbs' in mode:
+        for pose in poses.round().astype('i'):
+            for i, (limb, color) in enumerate(zip(params['limbs_point'], limb_colors)):
+                if i != 9 and i != 13:  # don't show ear-shoulder connection
+                    limb_ind = np.array(limb)
+                    if np.all(pose[limb_ind][:, 2] != 0):
+                        joint1, joint2 = pose[limb_ind][:, :2]
+                        cv2.line(canvas, tuple(joint1), tuple(joint2), color, 2)
 
     # joints
-    for pose in poses.round().astype('i'):
-        for i, ((x, y, v), color) in enumerate(zip(pose, joint_colors)):
-            if v != 0:
-                cv2.circle(canvas, (x, y), 3, color, -1)
+    if 'joints' in mode:
+        for pose in poses.round().astype('i'):
+            for i, ((x, y, v), color) in enumerate(zip(pose, joint_colors)):
+                if v != 0:
+                    cv2.circle(canvas, (x, y), 3, color, -1)
     return canvas
